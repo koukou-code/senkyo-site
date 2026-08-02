@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>選挙区台帳 — 議席予想ツール</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Noto+Sans+JP:wght@400;500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #eee9dd;
+    --bg-card: #f7f4ea;
+    --ink: #2b2621;
+    --ink-soft: #5c5347;
+    --ink-faint: #948a78;
+    --line: #d8cfb8;
+    --line-strong: #b8ab8c;
+    --stamp-red: #a13d34;
+    --gold: #9a7b2f;
+    --paper-shadow: rgba(43,38,33,0.08);
+    --win-bg: #eef3e8;
+    --win-border: #7a9a5a;
+    --undecided: #cfc6ae;
+    --serif: "Shippori Mincho", serif;
+    --sans: "Zen Kaku Gothic New", "Noto Sans JP", sans-serif;
+    --radius: 6px;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:
+      linear-gradient(180deg, rgba(0,0,0,0.02), transparent 200px),
+      var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    min-height:100vh;
+  }
+
+  .app{
+    display:grid;
+    grid-template-columns: 380px 1fr;
+    min-height:100vh;
+  }
+  @media (max-width: 980px){
+    .app{ grid-template-columns: 1fr; }
+    .sidebar{ position: static !important; height:auto !important; }
+  }
+
+  /* ---------------- Sidebar ---------------- */
+  .sidebar{
+    background: var(--bg-card);
+    border-right: 1px solid var(--line-strong);
+    padding: 22px 20px 30px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    display:flex;
+    flex-direction:column;
+    gap: 18px;
+  }
+  .brand{
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 12px;
+  }
+  .brand-eyebrow{
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--stamp-red);
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+  .brand h1{
+    font-family: var(--serif);
+    font-size: 21px;
+    font-weight: 800;
+    margin: 0;
+    line-height: 1.4;
+  }
+  .brand p{
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    margin: 6px 0 0;
+    line-height:1.6;
+  }
+
+  .house-toggle{
+    display:flex;
+    border: 1.5px solid var(--ink);
+    border-radius: 999px;
+    overflow:hidden;
+  }
+  .house-toggle button{
+    flex:1;
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 13.5px;
+    padding: 9px 0;
+    border: none;
+    background: transparent;
+    color: var(--ink);
+    cursor:pointer;
+  }
+  .house-toggle button.active{
+    background: var(--ink);
+    color: var(--bg-card);
+  }
+
+  .summary-card{
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .summary-card h3{
+    font-family: var(--serif);
+    font-size: 12.5px;
+    margin: 0 0 10px;
+    color: var(--ink-soft);
+    letter-spacing: 0.05em;
+  }
+  .progress-row{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .progress-track{
+    flex:1;
+    height: 7px;
+    background: var(--undecided);
+    border-radius: 999px;
+    overflow:hidden;
+  }
+  .progress-fill{
+    height:100%;
+    background: var(--win-border);
+    width:0%;
+    transition: width .2s ease;
+  }
+  .progress-label{
+    font-size: 11px;
+    font-weight:700;
+    color: var(--ink-soft);
+    white-space:nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .party-tally{ display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  .party-tally-row{
+    display:grid;
+    grid-template-columns: 10px 1fr 34px;
+    align-items:center;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .party-tally-row .dot{ width:9px; height:9px; border-radius:2px; }
+  .party-tally-row .num{ text-align:right; font-weight:700; font-variant-numeric: tabular-nums; }
+  .majority-flag{
+    margin-top: 10px;
+    padding: 8px 10px;
+    background: var(--win-bg);
+    border: 1px dashed var(--win-border);
+    border-radius: var(--radius);
+    font-size: 11.5px;
+    color: #3f5a2f;
+    font-weight: 700;
+    text-align:center;
+  }
+
+  .filter-card{
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display:flex;
+    flex-direction:column;
+    gap: 10px;
+  }
+  .filter-card h3{
+    font-family: var(--serif);
+    font-size: 12.5px;
+    margin: 0;
+    color: var(--ink-soft);
+  }
+  .filter-card input[type="text"]{
+    width:100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 12.5px;
+    background: var(--bg-card);
+    color: var(--ink);
+  }
+  .filter-card input[type="text"]:focus{ outline: 1.5px solid var(--gold); }
+  .checkbox-row{
+    display:flex;
+    align-items:center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+
+  .io-card{
+    display:flex;
+    flex-direction:column;
+    gap: 8px;
+  }
+  .btn{
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 12px;
+    padding: 9px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--ink);
+    background: #fff;
+    color: var(--ink);
+    cursor:pointer;
+    text-align:center;
+  }
+  .btn:hover{ background: var(--ink); color:#fff; }
+  .btn.danger{ border-color: var(--stamp-red); color: var(--stamp-red); }
+  .btn.danger:hover{ background: var(--stamp-red); color:#fff; }
+  .io-hidden{ display:none; }
+
+  .save-note{
+    font-size: 10.5px;
+    color: var(--ink-faint);
+    line-height: 1.6;
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+  }
+
+  /* ---------------- Main ---------------- */
+  .main{
+    padding: 24px 26px 60px;
+    max-width: 1100px;
+  }
+
+  .main-head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .main-head h2{
+    font-family: var(--serif);
+    font-size: 19px;
+    margin:0;
+  }
+  .main-head .count{
+    font-size: 12px;
+    color: var(--ink-faint);
+  }
+
+  .pref-group{
+    margin-bottom: 22px;
+  }
+  .pref-header{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 12px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .pref-header .caret{
+    font-size: 11px;
+    color: var(--ink-faint);
+    transition: transform .15s ease;
+  }
+  .pref-header.collapsed .caret{ transform: rotate(-90deg); }
+  .pref-header h3{
+    font-family: var(--serif);
+    font-size: 15.5px;
+    margin:0;
+    letter-spacing: 0.03em;
+  }
+  .pref-header .pref-stat{
+    font-size: 11px;
+    color: var(--ink-faint);
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .district-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .pref-header.collapsed + .district-grid{ display:none; }
+
+  .district-card{
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px 14px;
+    box-shadow: 0 1px 2px var(--paper-shadow);
+    display:flex;
+    flex-direction:column;
+    gap: 8px;
+  }
+  .district-card.decided{ border-color: var(--win-border); background: var(--win-bg); }
+
+  .district-card-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .district-card-head .dlabel{
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 13.5px;
+  }
+  .status-chip{
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--undecided);
+    color: var(--ink-soft);
+    letter-spacing: 0.05em;
+  }
+  .status-chip.decided{ background: var(--win-border); color:#fff; }
+
+  .candidate-list{
+    display:flex;
+    flex-direction:column;
+    gap: 6px;
+  }
+  .candidate-row{
+    display:flex;
+    align-items:center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    font-size: 12px;
+  }
+  .candidate-row.selected{
+    border-color: var(--win-border);
+    background: var(--win-bg);
+    font-weight: 700;
+  }
+  .candidate-row .win-radio{
+    width: 15px; height:15px;
+    flex-shrink:0;
+    cursor:pointer;
+    accent-color: var(--win-border);
+  }
+  .candidate-row .c-name{
+    flex:1;
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .candidate-row .c-party-dot{
+    width:8px;height:8px;border-radius:2px;flex-shrink:0;
+  }
+  .candidate-row .c-terms{
+    font-size: 10px;
+    color: var(--ink-faint);
+    flex-shrink:0;
+  }
+  .candidate-row .c-del{
+    background:none; border:none; color: var(--ink-faint);
+    cursor:pointer; font-size: 13px; padding: 2px 4px; flex-shrink:0;
+  }
+  .candidate-row .c-del:hover{ color: var(--stamp-red); }
+  .candidate-row.editing{ flex-wrap: wrap; }
+
+  .empty-hint{
+    font-size: 11px;
+    color: var(--ink-faint);
+    padding: 4px 2px;
+  }
+
+  .add-candidate-form{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .add-candidate-form input,
+  .add-candidate-form select{
+    font-family: var(--sans);
+    font-size: 11.5px;
+    padding: 6px 8px;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--ink);
+    width:100%;
+  }
+  .add-candidate-form input.full,
+  .add-candidate-form select.full{ grid-column: 1 / -1; }
+  .add-candidate-form .add-btn{
+    grid-column: 1 / -1;
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 11.5px;
+    padding: 7px;
+    border: 1px solid var(--ink);
+    border-radius: 4px;
+    background: var(--ink);
+    color: #fff;
+    cursor:pointer;
+  }
+  .add-candidate-form .add-btn:hover{ background: var(--gold); border-color: var(--gold); }
+
+  .memo-toggle{
+    font-size: 10px;
+    color: var(--ink-faint);
+    cursor:pointer;
+    text-decoration: underline;
+    align-self:flex-start;
+  }
+
+  ::selection{ background: var(--gold); color:#fff; }
+
+  /* scrollbar (webkit) subtle */
+  .sidebar::-webkit-scrollbar{ width: 6px; }
+  .sidebar::-webkit-scrollbar-thumb{ background: var(--line-strong); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ==================== SIDEBAR ==================== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <p class="brand-eyebrow">DISTRICT LEDGER</p>
+      <h1>選挙区台帳</h1>
+      <p>選挙区ごとに候補者を登録し、勝ちそうな人を選ぶだけで議席予想が積み上がります。</p>
+    </div>
+
+    <div class="house-toggle">
+      <button id="btn-shugiin" class="active">衆議院小選挙区</button>
+      <button id="btn-sangiin">参議院選挙区</button>
+    </div>
+
+    <div class="summary-card">
+      <h3>予想状況</h3>
+      <div class="progress-row">
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        <span class="progress-label" id="progress-label">0 / 289 確定</span>
+      </div>
+      <div class="party-tally" id="party-tally"></div>
+      <div class="majority-flag" id="majority-flag" style="display:none;"></div>
+    </div>
+
+    <div class="filter-card">
+      <h3>絞り込み</h3>
+      <input type="text" id="search-input" placeholder="都道府県・候補者名で検索" />
+      <label class="checkbox-row">
+        <input type="checkbox" id="only-undecided" />
+        未定の選挙区のみ表示
+      </label>
+    </div>
+
+    <div class="io-card">
+      <button class="btn" id="btn-export">JSONを書き出す（バックアップ）</button>
+      <button class="btn" id="btn-import-trigger">JSONを読み込む</button>
+      <input type="file" id="btn-import" class="io-hidden" accept="application/json" />
+      <button class="btn danger" id="btn-reset-all">この院のデータをすべて消去</button>
+    </div>
+
+    <p class="save-note">
+      入力内容はこの端末のブラウザ内に自動保存されます（localStorage）。
+      別の端末や共有したい場合はJSONの書き出し・読み込みを使ってください。
+    </p>
+  </aside>
+
+  <!-- ==================== MAIN ==================== -->
+  <main class="main">
+    <div class="main-head">
+      <h2 id="main-title">衆議院 小選挙区（289）</h2>
+      <span class="count" id="main-count"></span>
+    </div>
+    <div id="pref-container"></div>
+  </main>
+
+</div>
+
+<script>
+// ============================================================
+// 選挙区マスタデータ
+// 衆議院小選挙区: 総務省「令和2年国勢調査人口（確定値）に基づく計算結果」
+//   都道府県別定数算出表（アダムズ方式 10増10減後、定数289）に基づく確定値
+// 参議院選挙区: 定数148（改選74）。鳥取・島根、徳島・高知は合区。
+// ============================================================
+
+// 都道府県別 衆議院小選挙区数（2022年区割り改定後、合計289）
+const SHUGIIN_PREF_SEATS = {
+  "北海道": 12, "青森県": 3, "岩手県": 3, "宮城県": 5, "秋田県": 3,
+  "山形県": 3, "福島県": 4, "茨城県": 7, "栃木県": 5, "群馬県": 5,
+  "埼玉県": 16, "千葉県": 14, "東京都": 30, "神奈川県": 20, "新潟県": 5,
+  "富山県": 3, "石川県": 3, "福井県": 2, "山梨県": 2, "長野県": 5,
+  "岐阜県": 5, "静岡県": 8, "愛知県": 16, "三重県": 4, "滋賀県": 3,
+  "京都府": 6, "大阪府": 19, "兵庫県": 12, "奈良県": 3, "和歌山県": 2,
+  "鳥取県": 2, "島根県": 2, "岡山県": 4, "広島県": 6, "山口県": 3,
+  "徳島県": 2, "香川県": 3, "愛媛県": 3, "高知県": 2, "福岡県": 11,
+  "佐賀県": 2, "長崎県": 3, "熊本県": 4, "大分県": 3, "宮崎県": 3,
+  "鹿児島県": 4, "沖縄県": 4
+};
+
+// 参議院選挙区: 名前 -> 総定数(3年ごとに半数改選のため、改選定数はtotal/2)
+// 鳥取県・島根県、徳島県・高知県は合区
+const SANGIIN_DISTRICTS = {
+  "北海道": 6, "青森県": 2, "岩手県": 2, "宮城県": 2, "秋田県": 2,
+  "山形県": 2, "福島県": 2, "茨城県": 4, "栃木県": 2, "群馬県": 2,
+  "埼玉県": 8, "千葉県": 6, "東京都": 12, "神奈川県": 8, "新潟県": 2,
+  "富山県": 2, "石川県": 2, "福井県": 2, "山梨県": 2, "長野県": 2,
+  "岐阜県": 2, "静岡県": 4, "愛知県": 8, "三重県": 2, "滋賀県": 2,
+  "京都府": 4, "大阪府": 8, "兵庫県": 6, "奈良県": 2, "和歌山県": 2,
+  "鳥取県・島根県": 2, "岡山県": 2, "広島県": 4, "山口県": 2,
+  "徳島県・高知県": 2, "香川県": 2, "愛媛県": 2, "福岡県": 6,
+  "佐賀県": 2, "長崎県": 2, "熊本県": 2, "大分県": 2, "宮崎県": 2,
+  "鹿児島県": 2, "沖縄県": 2
+};
+
+// 政党マスタ（色付き、選択肢として使う）
+const PARTY_LIST = [
+  { name: "自由民主党", color: "#b5493f" },
+  { name: "中道改革連合", color: "#3f7fb5" },
+  { name: "立憲民主党", color: "#3f7fb5" },
+  { name: "公明党", color: "#4fa0c9" },
+  { name: "日本維新の会", color: "#3fa66a" },
+  { name: "国民民主党", color: "#c8a04d" },
+  { name: "参政党", color: "#d1893f" },
+  { name: "れいわ新選組", color: "#d14fa0" },
+  { name: "日本共産党", color: "#8c3f8f" },
+  { name: "チームみらい", color: "#4fc3c9" },
+  { name: "日本保守党", color: "#5a5a8f" },
+  { name: "社会民主党", color: "#e0708a" },
+  { name: "無所属", color: "#7a7a72" },
+  { name: "未定・その他", color: "#4a5a54" }
+];
+
+function partyColor(name){
+  const found = PARTY_LIST.find(p => p.name === name);
+  return found ? found.color : "#6a7a72";
+}
+
+// ------------------------------------------------------------
+// 選挙区リストの生成
+// ------------------------------------------------------------
+function buildShugiinDistricts(){
+  const list = [];
+  Object.entries(SHUGIIN_PREF_SEATS).forEach(([pref, count]) => {
+    for (let i = 1; i <= count; i++){
+      list.push({
+        id: `shu-${pref}-${i}`,
+        pref,
+        label: `${pref}${i}区`,
+        seatCount: 1,           // 小選挙区は1
+        candidates: [],
+        winnerIdx: null         // candidates配列内のindex、未定ならnull
+      });
+    }
+  });
+  return list;
+}
+
+function buildSangiinDistricts(){
+  const list = [];
+  Object.entries(SANGIIN_DISTRICTS).forEach(([pref, total]) => {
+    const renewal = total / 2; // 改選議席数
+    list.push({
+      id: `san-${pref}`,
+      pref,
+      label: pref,
+      seatCount: renewal,      // 今回の改選定数（1 or 2以上）
+      candidates: [],
+      winnerIdx: null,         // 定数1の場合のみ使用
+      winnerIdxs: []           // 定数2以上の場合、複数選択に使用
+    });
+  });
+  return list;
+}
+
+</script>
+<script>
+(function(){
+
+  const STORAGE_KEY = "district-ledger-v1";
+
+  // ---------- State ----------
+  let currentHouse = "shugiin"; // or "sangiin"
+  let data = {
+    shugiin: buildShugiinDistricts(),
+    sangiin: buildSangiinDistricts()
+  };
+
+  // collapse state per pref (persist within session only)
+  let collapsedPrefs = new Set();
+
+  // load from storage
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw){
+        const parsed = JSON.parse(raw);
+        if (parsed.shugiin && parsed.sangiin){
+          data = parsed;
+        }
+      }
+    }catch(e){ console.warn("load failed", e); }
+  }
+  function saveState(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }catch(e){ console.warn("save failed", e); }
+  }
+
+  loadState();
+
+  // ---------- DOM refs ----------
+  const prefContainer = document.getElementById("pref-container");
+  const mainTitle = document.getElementById("main-title");
+  const mainCount = document.getElementById("main-count");
+  const progressFill = document.getElementById("progress-fill");
+  const progressLabel = document.getElementById("progress-label");
+  const partyTallyEl = document.getElementById("party-tally");
+  const majorityFlag = document.getElementById("majority-flag");
+  const searchInput = document.getElementById("search-input");
+  const onlyUndecided = document.getElementById("only-undecided");
+
+  const HOUSE_META = {
+    shugiin: { title: "衆議院 小選挙区（289）", total: 289, majority: 233 },
+    sangiin: { title: "参議院 選挙区（今回改選 74）", total: 74, majority: null }
+  };
+
+  function currentList(){ return data[currentHouse]; }
+
+  // ---------- Rendering ----------
+  function groupByPref(list){
+    const map = new Map();
+    list.forEach(d => {
+      if (!map.has(d.pref)) map.set(d.pref, []);
+      map.get(d.pref).push(d);
+    });
+    return map;
+  }
+
+  function districtIsDecided(d){
+    if (d.seatCount === 1){
+      return d.winnerIdx !== null && d.winnerIdx !== undefined && d.candidates[d.winnerIdx];
+    } else {
+      return (d.winnerIdxs || []).length >= d.seatCount;
+    }
+  }
+
+  function districtWinners(d){
+    if (d.seatCount === 1){
+      if (districtIsDecided(d)) return [d.candidates[d.winnerIdx]];
+      return [];
+    } else {
+      return (d.winnerIdxs || []).map(i => d.candidates[i]).filter(Boolean);
+    }
+  }
+
+  function render(){
+    const list = currentList();
+    const meta = HOUSE_META[currentHouse];
+    mainTitle.textContent = meta.title;
+
+    const searchTerm = searchInput.value.trim();
+    const filterUndecided = onlyUndecided.checked;
+
+    let filtered = list;
+    if (searchTerm){
+      const t = searchTerm.toLowerCase();
+      filtered = filtered.filter(d =>
+        d.pref.toLowerCase().includes(t) ||
+        d.label.toLowerCase().includes(t) ||
+        d.candidates.some(c => (c.name||"").toLowerCase().includes(t))
+      );
+    }
+    if (filterUndecided){
+      filtered = filtered.filter(d => !districtIsDecided(d));
+    }
+
+    mainCount.textContent = `表示中 ${filtered.length} / 全${list.length}選挙区`;
+
+    const grouped = groupByPref(filtered);
+    prefContainer.innerHTML = "";
+
+    grouped.forEach((districts, pref) => {
+      const decidedCount = districts.filter(districtIsDecided).length;
+
+      const section = document.createElement("div");
+      section.className = "pref-group";
+
+      const header = document.createElement("div");
+      header.className = "pref-header" + (collapsedPrefs.has(pref) ? " collapsed" : "");
+      header.innerHTML = `
+        <span class="caret">▼</span>
+        <h3>${pref}</h3>
+        <span class="pref-stat">${decidedCount} / ${districts.length} 確定</span>
+      `;
+      header.addEventListener("click", () => {
+        if (collapsedPrefs.has(pref)) collapsedPrefs.delete(pref);
+        else collapsedPrefs.add(pref);
+        render();
+      });
+      section.appendChild(header);
+
+      const grid = document.createElement("div");
+      grid.className = "district-grid";
+
+      districts.forEach(d => {
+        grid.appendChild(renderDistrictCard(d));
+      });
+
+      section.appendChild(grid);
+      prefContainer.appendChild(section);
+    });
+
+    renderSummary();
+  }
+
+  function renderDistrictCard(d){
+    const card = document.createElement("div");
+    const decided = districtIsDecided(d);
+    card.className = "district-card" + (decided ? " decided" : "");
+
+    const head = document.createElement("div");
+    head.className = "district-card-head";
+    head.innerHTML = `
+      <span class="dlabel">${d.label}</span>
+      <span class="status-chip ${decided ? "decided" : ""}">${decided ? "確定" : (d.seatCount>1 ? `定数${d.seatCount}` : "未定")}</span>
+    `;
+    card.appendChild(head);
+
+    const listEl = document.createElement("div");
+    listEl.className = "candidate-list";
+
+    if (d.candidates.length === 0){
+      const hint = document.createElement("div");
+      hint.className = "empty-hint";
+      hint.textContent = "候補者が未登録です。下のフォームから追加してください。";
+      listEl.appendChild(hint);
+    }
+
+    d.candidates.forEach((c, idx) => {
+      const row = document.createElement("div");
+      const isSelected = d.seatCount === 1
+        ? d.winnerIdx === idx
+        : (d.winnerIdxs || []).includes(idx);
+      row.className = "candidate-row" + (isSelected ? " selected" : "");
+
+      const inputType = d.seatCount === 1 ? "radio" : "checkbox";
+      row.innerHTML = `
+        <input type="${inputType}" class="win-radio" ${isSelected ? "checked" : ""} data-idx="${idx}" ${d.seatCount===1 ? `name="win-${d.id}"` : ""} />
+        <span class="c-party-dot" style="background:${partyColor(c.party)}"></span>
+        <span class="c-name" title="${c.name}${c.memo ? ' — ' + c.memo : ''}">${c.name}<span style="color:var(--ink-faint);font-weight:400;"> ／ ${c.party || "無所属"}</span></span>
+        <span class="c-terms">${c.terms ? c.terms + "回" : ""}</span>
+        <button class="c-del" data-idx="${idx}" title="削除">×</button>
+      `;
+      listEl.appendChild(row);
+    });
+
+    card.appendChild(listEl);
+
+    // add candidate form
+    const form = document.createElement("div");
+    form.className = "add-candidate-form";
+    const partyOptions = PARTY_LIST.map(p => `<option value="${p.name}">${p.name}</option>`).join("");
+    form.innerHTML = `
+      <input type="text" class="new-name" placeholder="候補者名" />
+      <select class="new-party">
+        <option value="">政党を選択</option>
+        ${partyOptions}
+      </select>
+      <input type="number" class="new-terms" placeholder="当選回数" min="0" />
+      <input type="text" class="new-memo" placeholder="メモ（任意）" />
+      <button class="add-btn" type="button">＋ 候補者を追加</button>
+    `;
+    card.appendChild(form);
+
+    // ---- events ----
+    listEl.querySelectorAll(".win-radio").forEach(input => {
+      input.addEventListener("change", e => {
+        const idx = +e.target.dataset.idx;
+        if (d.seatCount === 1){
+          d.winnerIdx = e.target.checked ? idx : null;
+        } else {
+          d.winnerIdxs = d.winnerIdxs || [];
+          if (e.target.checked){
+            if (!d.winnerIdxs.includes(idx) && d.winnerIdxs.length < d.seatCount){
+              d.winnerIdxs.push(idx);
+            } else if (d.winnerIdxs.length >= d.seatCount){
+              e.target.checked = false;
+              return;
+            }
+          } else {
+            d.winnerIdxs = d.winnerIdxs.filter(i => i !== idx);
+          }
+        }
+        saveState();
+        render();
+      });
+    });
+
+    listEl.querySelectorAll(".c-del").forEach(btn => {
+      btn.addEventListener("click", e => {
+        const idx = +e.target.dataset.idx;
+        d.candidates.splice(idx, 1);
+        // fix winner indices
+        if (d.seatCount === 1){
+          if (d.winnerIdx === idx) d.winnerIdx = null;
+          else if (d.winnerIdx > idx) d.winnerIdx -= 1;
+        } else {
+          d.winnerIdxs = (d.winnerIdxs || [])
+            .filter(i => i !== idx)
+            .map(i => i > idx ? i - 1 : i);
+        }
+        saveState();
+        render();
+      });
+    });
+
+    const addBtn = form.querySelector(".add-btn");
+    addBtn.addEventListener("click", () => {
+      const nameInput = form.querySelector(".new-name");
+      const partySelect = form.querySelector(".new-party");
+      const termsInput = form.querySelector(".new-terms");
+      const memoInput = form.querySelector(".new-memo");
+      const name = nameInput.value.trim();
+      if (!name) { nameInput.focus(); return; }
+      d.candidates.push({
+        name,
+        party: partySelect.value || "無所属",
+        terms: termsInput.value ? parseInt(termsInput.value, 10) : null,
+        memo: memoInput.value.trim()
+      });
+      saveState();
+      render();
+    });
+
+    // allow Enter key in name field to add
+    form.querySelector(".new-name").addEventListener("keydown", e => {
+      if (e.key === "Enter") addBtn.click();
+    });
+
+    return card;
+  }
+
+  function renderSummary(){
+    const list = currentList();
+    const meta = HOUSE_META[currentHouse];
+    const decidedCount = list.filter(districtIsDecided).length;
+    const totalSeats = list.reduce((a,d) => a + d.seatCount, 0);
+
+    progressLabel.textContent = `${decidedCount} / ${list.length} 選挙区 確定`;
+    const pct = list.length ? (decidedCount/list.length)*100 : 0;
+    progressFill.style.width = pct + "%";
+
+    // party tally: count seats won per party
+    const tally = {};
+    let decidedSeats = 0;
+    list.forEach(d => {
+      districtWinners(d).forEach(w => {
+        if (!w) return;
+        const p = w.party || "無所属";
+        tally[p] = (tally[p]||0) + 1;
+        decidedSeats += 1;
+      });
+    });
+
+    const sorted = Object.entries(tally).sort((a,b) => b[1]-a[1]);
+    partyTallyEl.innerHTML = "";
+    if (sorted.length === 0){
+      partyTallyEl.innerHTML = `<div class="empty-hint">まだ確定した選挙区がありません。</div>`;
+    } else {
+      sorted.forEach(([party, count]) => {
+        const row = document.createElement("div");
+        row.className = "party-tally-row";
+        row.innerHTML = `
+          <span class="dot" style="background:${partyColor(party)}"></span>
+          <span>${party}</span>
+          <span class="num">${count}</span>
+        `;
+        partyTallyEl.appendChild(row);
+      });
+    }
+
+    if (currentHouse === "shugiin"){
+      majorityFlag.style.display = "block";
+      const top = sorted[0];
+      if (top && top[1] >= meta.majority){
+        majorityFlag.textContent = `${top[0]} が過半数（${meta.majority}）に到達`;
+        majorityFlag.style.color = "#3f5a2f";
+      } else if (top){
+        const diff = meta.majority - top[1];
+        majorityFlag.textContent = `${top[0]} は過半数まであと ${diff} 議席`;
+        majorityFlag.style.color = "#5c5347";
+      } else {
+        majorityFlag.style.display = "none";
+      }
+    } else {
+      majorityFlag.style.display = "none";
+    }
+  }
+
+  // ---------- Controls ----------
+  document.getElementById("btn-shugiin").addEventListener("click", () => switchHouse("shugiin"));
+  document.getElementById("btn-sangiin").addEventListener("click", () => switchHouse("sangiin"));
+
+  function switchHouse(house){
+    if (house === currentHouse) return;
+    currentHouse = house;
+    collapsedPrefs = new Set();
+    document.getElementById("btn-shugiin").classList.toggle("active", house==="shugiin");
+    document.getElementById("btn-sangiin").classList.toggle("active", house==="sangiin");
+    render();
+  }
+
+  searchInput.addEventListener("input", render);
+  onlyUndecided.addEventListener("change", render);
+
+  document.getElementById("btn-export").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const dateStr = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `district-ledger-${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById("btn-import-trigger").addEventListener("click", () => {
+    document.getElementById("btn-import").click();
+  });
+  document.getElementById("btn-import").addEventListener("change", e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try{
+        const parsed = JSON.parse(evt.target.result);
+        if (parsed.shugiin && parsed.sangiin){
+          data = parsed;
+          saveState();
+          render();
+          alert("読み込みました。");
+        } else {
+          alert("このファイルの形式を認識できませんでした。");
+        }
+      }catch(err){
+        alert("JSONの読み込みに失敗しました: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  });
+
+  document.getElementById("btn-reset-all").addEventListener("click", () => {
+    const houseName = currentHouse === "shugiin" ? "衆議院" : "参議院";
+    if (!confirm(`${houseName}のすべての候補者データと選択結果を削除します。よろしいですか？`)) return;
+    if (currentHouse === "shugiin"){
+      data.shugiin = buildShugiinDistricts();
+    } else {
+      data.sangiin = buildSangiinDistricts();
+    }
+    saveState();
+    render();
+  });
+
+  // initial render
+  render();
+
+})();
+</script>
+</body>
+</html>
